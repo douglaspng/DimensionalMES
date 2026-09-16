@@ -1,0 +1,35 @@
+{
+  "machine_id": "Smart40-N2",
+  "variables": {
+    "temperature": {
+      "value": 73.02,
+      "unit": "C",
+      "timestamp": "2026-09-12T19:02:04.395251Z",
+      "status_code": 0
+    },
+    "pressure": {
+      "value": 100.01,
+      "unit": "bar",
+      "timestamp": "2026-09-12T19:02:04.395255Z",
+      "status_code": 0
+    },
+    "cycle_time": {
+      "value": 13.12,
+      "unit": "s",
+      "timestamp": "2026-09-12T19:02:04.395258Z",
+      "status_code": 0
+    },
+    "piece_counter": {
+      "value": 20,
+      "unit": "pecas",
+      "timestamp": "2026-09-12T19:02:04.395261Z",
+      "status_code": 0
+    }
+  },
+  "alerts": [],
+  "timestamp": "2026-09-12T19:02:04.395261Z",
+  "connection": {
+    "opcua": "connected",
+    "node_red": "connected"
+  }
+}

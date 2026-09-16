@@ -1,0 +1,59 @@
+{
+  "machine_id": "Smart40-N2",
+  "machine_name": "Celula Smart 4.0 Modular",
+
+  "opcua": {
+    "endpoint": "",
+    "enabled": false,
+    "authentication": "unknown"
+  },
+
+  "storage": {
+    "data_dir": "data",
+    "telemetry_file_prefix": "telemetria",
+    "current_state_file": "estado_atual.json",
+    "alerts_file": "alertas.json",
+    "metrics_file": "indicadores.json",
+    "invalid_file": "leituras_invalidas.csv"
+  },
+
+  "variables": {
+    "temperature": {
+      "node_id": "",
+      "unit": "C",
+      "min": 0,
+      "max": 250,
+      "warning_high": 220
+    },
+
+    "pressure": {
+      "node_id": "",
+      "unit": "bar",
+      "min": 0,
+      "max": 300,
+      "warning_low": 40
+    },
+
+    "cycle_time": {
+      "node_id": "",
+      "unit": "s",
+      "min": 0,
+      "max": 3600,
+      "warning_high": 30
+    },
+
+    "piece_counter": {
+      "node_id": "",
+      "unit": "pecas",
+      "min": 0,
+      "max": 100000000
+    },
+
+    "machine_status": {
+      "node_id": "",
+      "unit": "codigo",
+      "min": 0,
+      "max": 10
+    }
+  }
+}

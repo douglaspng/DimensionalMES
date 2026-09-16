@@ -1,0 +1,42 @@
+{
+  "machine_id": "Smart40-N2",
+  "total_readings": 400,
+  "anomalies": {
+    "total": 18,
+    "percentage": 4.5
+  },
+  "variables": {
+    "temperature": {
+      "quantidade": 100,
+      "media": 75.0265,
+      "mediana": 75.08,
+      "minimo": 67.79,
+      "maximo": 81.73,
+      "desvio_padrao": 2.5835
+    },
+    "pressure": {
+      "quantidade": 100,
+      "media": 90.7356,
+      "mediana": 90.28,
+      "minimo": 79.01,
+      "maximo": 107.64,
+      "desvio_padrao": 5.1879
+    },
+    "cycle_time": {
+      "quantidade": 100,
+      "media": 12.1404,
+      "mediana": 11.995,
+      "minimo": 9.26,
+      "maximo": 14.87,
+      "desvio_padrao": 1.0748
+    },
+    "piece_counter": {
+      "quantidade": 100,
+      "media": 10.5,
+      "mediana": 10.5,
+      "minimo": 1.0,
+      "maximo": 20.0,
+      "desvio_padrao": 5.7663
+    }
+  }
+}
