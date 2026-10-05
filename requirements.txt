@@ -8,6 +8,7 @@ plotly>=5.18
 
 # Dashboard opcional
 streamlit>=1.30
+streamlit-autorefresh>=1.0.1
 
 # Integração opcional com Node-RED/MQTT
 paho-mqtt>=1.6
