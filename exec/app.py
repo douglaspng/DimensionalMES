@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+
+try:
+    from streamlit_autorefresh import st_autorefresh
+except ImportError:
+    st_autorefresh = None
 
 try:
     import plotly.express as px
@@ -75,6 +81,11 @@ ARQUIVO_TELEMETRIA = DIRETORIO_DADOS / "telemetria.csv"
 ARQUIVO_ESTADO = DIRETORIO_DADOS / "estado_atual.json"
 ARQUIVO_ALERTAS = DIRETORIO_DADOS / "alertas.json"
 ARQUIVO_INDICADORES = DIRETORIO_DADOS / "indicadores.json"
+ARQUIVO_CONFIGURACAO_DASHBOARD = DIRETORIO_DADOS / "configuracao_dashboard.json"
+CAMINHOS_CONFIGURACAO = [
+    RAIZ_PROJETO / "config" / "config.json",
+    RAIZ_PROJETO / "config.json",
+]
 
 
 def ler_json(caminho: Path, padrao):
@@ -84,6 +95,43 @@ def ler_json(caminho: Path, padrao):
         return json.loads(caminho.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return padrao
+
+
+def salvar_json(caminho: Path, dados: dict) -> None:
+    """Salva preferências sem deixar um JSON parcialmente escrito."""
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    temporario = caminho.with_suffix(caminho.suffix + ".tmp")
+    temporario.write_text(json.dumps(dados, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporario.replace(caminho)
+
+
+def avaliar_alertas_visuais(dados: pd.DataFrame, configuracao: dict) -> list[dict]:
+    """Identifica leituras fora dos limites configurados para exibição imediata."""
+    alertas_visuais = []
+    variaveis_configuradas = configuracao.get("variables", {})
+    for variavel, limites in variaveis_configuradas.items():
+        leituras = dados[dados["variable"] == variavel]
+        if leituras.empty:
+            continue
+        for _, leitura in leituras.iterrows():
+            valor = leitura.get("value")
+            if pd.isna(valor):
+                continue
+            limite_inferior = limites.get("warning_low", limites.get("min"))
+            limite_superior = limites.get("warning_high", limites.get("max"))
+            if limite_superior is not None and valor > limite_superior:
+                alertas_visuais.append({
+                    "variavel": nome_amigavel(variavel), "valor": valor,
+                    "limite": limite_superior, "tipo": "alta",
+                    "unidade": limites.get("unit", ""), "timestamp": leitura.get("timestamp")
+                })
+            elif limite_inferior is not None and valor < limite_inferior:
+                alertas_visuais.append({
+                    "variavel": nome_amigavel(variavel), "valor": valor,
+                    "limite": limite_inferior, "tipo": "baixa",
+                    "unidade": limites.get("unit", ""), "timestamp": leitura.get("timestamp")
+                })
+    return alertas_visuais
 
 
 def nome_amigavel(nome: str) -> str:
@@ -133,9 +181,7 @@ def preparar_producao(dados: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     return diaria, horaria
 
 
-def calcular_desempenho(
-    dados: pd.DataFrame, diaria: pd.DataFrame, indicadores_atuais: dict
-) -> dict[str, float | str]:
+def calcular_desempenho(dados: pd.DataFrame, diaria: pd.DataFrame) -> dict[str, float | str]:
     """Calcula indicadores disponíveis no CSV atual, sem inventar OEE."""
     ciclos = dados.loc[dados["variable"] == "cycle_time", "value"].dropna()
     producao_total = float(diaria["producao"].sum()) if not diaria.empty else 0.0
@@ -145,9 +191,32 @@ def calcular_desempenho(
         "producao_total": producao_total,
         "media_ciclo": media_ciclo,
         "leituras_validas": leituras_validas,
-        "taxa_anomalias": float(indicadores_atuais.get("anomalies", {}).get("percentage", 0.0)),
+        "taxa_anomalias": float(indicadores.get("anomalies", {}).get("percentage", 0.0)),
         "observacao": "OEE completo depende de tempo planejado, paradas e peças aprovadas/rejeitadas."
     }
+
+
+def aplicar_estilo_grafico(
+    grafico,
+    fundo: str,
+    exibir_grade: bool,
+    altura: int,
+    cor_legenda: str,
+    cor_rotulos: str,
+):
+    """Aplica o estilo escolhido pelo usuário a um gráfico Plotly."""
+    grafico.update_layout(
+        height=altura,
+        paper_bgcolor=fundo,
+        plot_bgcolor=fundo,
+        font_color="#26384c",
+        xaxis_showgrid=exibir_grade,
+        yaxis_showgrid=exibir_grade,
+        legend={"font": {"color": cor_legenda}},
+        xaxis={"tickfont": {"color": cor_rotulos}, "title_font": {"color": cor_rotulos}},
+        yaxis={"tickfont": {"color": cor_rotulos}, "title_font": {"color": cor_rotulos}},
+    )
+    return grafico
 
 
 st.markdown(
@@ -188,6 +257,11 @@ dados["variavel_amigavel"] = dados["variable"].map(nome_amigavel)
 estado = ler_json(ARQUIVO_ESTADO, {})
 alertas = ler_json(ARQUIVO_ALERTAS, [])
 indicadores = ler_json(ARQUIVO_INDICADORES, {})
+configuracao_salva = ler_json(ARQUIVO_CONFIGURACAO_DASHBOARD, {})
+configuracao_projeto = next(
+    (ler_json(caminho, {}) for caminho in CAMINHOS_CONFIGURACAO if caminho.exists()),
+    {}
+)
 
 # -----------------------------------------------------------------------------
 # Barra lateral
@@ -202,6 +276,19 @@ with st.sidebar:
         default=variaveis,
         format_func=nome_amigavel,
     )
+    datas_disponiveis = dados["timestamp"].dropna()
+    data_minima = datas_disponiveis.min().date() if not datas_disponiveis.empty else date.today()
+    data_maxima = datas_disponiveis.max().date() if not datas_disponiveis.empty else date.today()
+    periodo = st.date_input(
+        "Período de análise",
+        value=(data_minima, data_maxima),
+        min_value=data_minima,
+        max_value=data_maxima,
+    )
+    if isinstance(periodo, tuple) and len(periodo) == 2:
+        inicio_periodo, fim_periodo = periodo
+    else:
+        inicio_periodo = fim_periodo = periodo
     quantidade_maxima = max(10, len(dados))
     limite = st.slider(
         "Quantidade de leituras",
@@ -210,6 +297,58 @@ with st.sidebar:
         value=min(200, quantidade_maxima),
     )
     st.divider()
+    with st.expander("Editor visual do dashboard", expanded=True):
+        temas_disponiveis = ["plotly_white", "plotly", "ggplot2", "seaborn"]
+        tema_grafico = st.selectbox(
+            "Tema dos gráficos",
+            temas_disponiveis,
+            index=temas_disponiveis.index(configuracao_salva.get("tema_grafico", "plotly_white")),
+            format_func=lambda tema: {
+                "plotly_white": "Claro suave",
+                "plotly": "Plotly padrão",
+                "ggplot2": "Cinza técnico",
+                "seaborn": "Seaborn"
+            }.get(tema, tema),
+        )
+        fundo_grafico = st.color_picker("Fundo dos gráficos", configuracao_salva.get("fundo_grafico", "#d2dce7"))
+        cor_texto_legenda = st.color_picker("Cor do texto da legenda", configuracao_salva.get("cor_texto_legenda", "#26384c"))
+        cor_rotulos_categoria = st.color_picker(
+            "Cor dos rótulos dos eixos/categorias",
+            configuracao_salva.get("cor_rotulos_categoria", "#53677c"),
+            help="Altera textos como Dia, Hora, Variável e os valores dos eixos.",
+        )
+        exibir_marcadores = st.checkbox("Exibir marcadores", value=configuracao_salva.get("exibir_marcadores", True))
+        exibir_grade = st.checkbox("Exibir linhas de grade", value=configuracao_salva.get("exibir_grade", True))
+        exibir_legenda = st.checkbox("Exibir legenda", value=configuracao_salva.get("exibir_legenda", True))
+        exibir_tabela = st.checkbox("Exibir tabelas", value=configuracao_salva.get("exibir_tabela", True))
+        altura_grafico = st.slider("Altura dos gráficos", 300, 800, int(configuracao_salva.get("altura_grafico", 480)), step=20)
+        st.caption("As cores abaixo alteram as linhas e os símbolos da legenda.")
+        paleta_padrao = ["#2f80ed", "#eb5757", "#27ae60", "#f2994a", "#9b51e0", "#00a6a6"]
+        cores_variaveis = {
+            variavel: st.color_picker(
+                nome_amigavel(variavel),
+                configuracao_salva.get("cores_variaveis", {}).get(
+                    variavel, paleta_padrao[indice % len(paleta_padrao)]
+                ),
+                key=f"cor_{variavel}",
+            )
+            for indice, variavel in enumerate(variaveis)
+        }
+        if st.button("Salvar preferências visuais", use_container_width=True):
+            salvar_json(ARQUIVO_CONFIGURACAO_DASHBOARD, {
+                "tema_grafico": tema_grafico,
+                "fundo_grafico": fundo_grafico,
+                "cor_texto_legenda": cor_texto_legenda,
+                "cor_rotulos_categoria": cor_rotulos_categoria,
+                "exibir_marcadores": exibir_marcadores,
+                "exibir_grade": exibir_grade,
+                "exibir_legenda": exibir_legenda,
+                "exibir_tabela": exibir_tabela,
+                "altura_grafico": altura_grafico,
+                "cores_variaveis": cores_variaveis,
+            })
+            st.success("Preferências visuais salvas.")
+    st.divider()
     st.markdown("### Informações do sistema")
     st.write(f"**Máquina:** {estado.get('machine_id', 'Smart40-N2')}")
     st.write(f"**Arquivo:** {ARQUIVO_TELEMETRIA.name}")
@@ -217,7 +356,26 @@ with st.sidebar:
     if st.button("Atualizar dados", use_container_width=True):
         st.rerun()
 
-filtrados = dados[dados["variable"].isin(selecionadas)].tail(limite)
+    atualizacao_automatica = st.checkbox(
+        "Atualização automática a cada 5 segundos",
+        value=False,
+        help="Recarrega o CSV e os JSONs periodicamente para refletir novas leituras.",
+    )
+
+if atualizacao_automatica:
+    if st_autorefresh is None:
+        st.warning(
+            "Instale streamlit-autorefresh para ativar a atualização automática."
+        )
+    else:
+        st_autorefresh(interval=5000, key="atualizacao_dimensional_mes")
+
+dados_periodo = dados[
+    (dados["timestamp"].dt.date >= inicio_periodo)
+    & (dados["timestamp"].dt.date <= fim_periodo)
+]
+filtrados = dados_periodo[dados_periodo["variable"].isin(selecionadas)].tail(limite)
+alertas_visuais = avaliar_alertas_visuais(dados_periodo, configuracao_projeto)
 
 # -----------------------------------------------------------------------------
 # KPIs
@@ -269,21 +427,37 @@ with resumo_coluna:
     st.write("Use os filtros laterais para investigar cada variável individualmente.")
     st.markdown("</div>", unsafe_allow_html=True)
 
+st.subheader("Alertas automáticos de processo")
+if alertas_visuais:
+    st.error(
+        f"{len(alertas_visuais)} leitura(s) ultrapassaram os limites configurados. "
+        "Verifique a condição da célula."
+    )
+    quadro_alertas = pd.DataFrame(alertas_visuais).sort_values("timestamp", ascending=False)
+    st.dataframe(
+        quadro_alertas.head(20),
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "variavel": "Variável",
+            "valor": st.column_config.NumberColumn("Valor", format="%.2f"),
+            "limite": st.column_config.NumberColumn("Limite", format="%.2f"),
+            "tipo": "Condição",
+            "unidade": "Unidade",
+            "timestamp": "Horário",
+        },
+    )
+else:
+    st.success("Nenhum limite de temperatura ou pressão foi ultrapassado no período selecionado.")
+
 # -----------------------------------------------------------------------------
 # Abas analíticas
 # -----------------------------------------------------------------------------
 aba_monitoramento, aba_producao, aba_analise, aba_alertas, aba_dados = st.tabs(
-    [
-        "📈 Monitoramento",
-        "🏭 Produção e Desempenho",
-        "📊 Análise Estatística",
-        "🔔 Alertas",
-        "🗂️ Dados Brutos",
-    ]
+    ["Monitoramento", "Produção e desempenho", "Análise estatística", "Alertas", "Dados brutos"]
 )
 
 with aba_monitoramento:
-    st.caption("Acompanhamento das variáveis selecionadas ao longo do tempo, em tempo quase real.")
     st.subheader("Tendência das variáveis")
     if filtrados.empty:
         st.info("Selecione ao menos uma variável.")
@@ -293,44 +467,47 @@ with aba_monitoramento:
             x="timestamp",
             y="value",
             color="variavel_amigavel",
-            markers=True,
-            template="plotly_white",
+            markers=exibir_marcadores,
+            template=tema_grafico,
             labels={"timestamp": "Horário", "value": "Valor", "variavel_amigavel": "Variável"},
             hover_data={"timestamp": True, "value": ":.3f", "variavel_amigavel": True, "unit": True},
         )
         grafico.update_layout(
-            legend_title_text="", hovermode="x unified", height=480,
-            paper_bgcolor="#d2dce7", plot_bgcolor="#d2dce7", font_color="#26384c",
-            legend=dict(orientation="h", y=1.08, x=0, font=dict(color="black")),
+            legend_title_text="", hovermode="x unified", height=altura_grafico,
+            paper_bgcolor=fundo_grafico, plot_bgcolor=fundo_grafico, font_color="#26384c",
+            showlegend=exibir_legenda,
+            legend=dict(orientation="h", y=1.08, x=0, font={"color": cor_texto_legenda}),
             margin=dict(l=20, r=20, t=70, b=20),
         )
-        grafico.update_xaxes(
-            rangeslider_visible=True, tickfont=dict(color="black"), title_font=dict(color="black"),
-            rangeselector=dict(buttons=[
-                dict(count=1, label="1h", step="hour", stepmode="backward"),
-                dict(count=6, label="6h", step="hour", stepmode="backward"),
-                dict(step="all", label="Tudo"),
-            ])
+        grafico.for_each_trace(
+            lambda trace: trace.update(
+                line={"color": cores_variaveis.get(trace.name, "#2f80ed")},
+                marker={"color": cores_variaveis.get(trace.name, "#2f80ed")},
+            )
         )
-        grafico.update_yaxes(tickfont=dict(color="black"), title_font=dict(color="black"))
-        st.plotly_chart(grafico, use_container_width=True, theme=None)
+        aplicar_estilo_grafico(grafico, fundo_grafico, exibir_grade, altura_grafico, cor_texto_legenda, cor_rotulos_categoria)
+        grafico.update_xaxes(rangeslider_visible=True, rangeselector=dict(buttons=[
+            dict(count=1, label="1h", step="hour", stepmode="backward"),
+            dict(count=6, label="6h", step="hour", stepmode="backward"),
+            dict(step="all", label="Tudo"),
+        ]))
+        st.plotly_chart(grafico, use_container_width=True)
     else:
         tabela_grafico = filtrados.pivot_table(index="timestamp", columns="variable", values="value", aggfunc="last")
         st.line_chart(tabela_grafico)
 
-    st.subheader("Últimas leituras")
-    st.dataframe(
-        filtrados[["timestamp", "variavel_amigavel", "value", "unit", "status_code", "alert_level"]].tail(30),
-        use_container_width=True,
-        hide_index=True,
-    )
+    if exibir_tabela:
+        st.subheader("Últimas leituras")
+        st.dataframe(
+            filtrados[["timestamp", "variavel_amigavel", "value", "unit", "status_code", "alert_level"]].tail(30),
+            use_container_width=True,
+            hide_index=True,
+        )
 
 with aba_producao:
-    st.caption("Indicadores de produção e desempenho calculados a partir dos dados coletados. "
-               "OEE completo só é exibido quando os dados de tempo planejado e paradas existirem.")
     st.subheader("Controle de produção")
-    producao_diaria, producao_horaria = preparar_producao(dados)
-    desempenho = calcular_desempenho(dados, producao_diaria, indicadores)
+    producao_diaria, producao_horaria = preparar_producao(dados_periodo)
+    desempenho = calcular_desempenho(dados_periodo, producao_diaria)
 
     kpi_producao = st.columns(4)
     kpi_producao[0].metric("Produção registrada", numero(desempenho["producao_total"], 0))
@@ -344,12 +521,16 @@ with aba_producao:
         if not producao_diaria.empty and px is not None:
             grafico_diario = px.bar(
                 producao_diaria, x="dia", y="producao", text_auto=True,
-                template="plotly_white", labels={"dia": "Dia", "producao": "Peças"}
+                template=tema_grafico, labels={"dia": "Dia", "producao": "Peças"}
             )
-            grafico_diario.update_layout(height=360, paper_bgcolor="#d2dce7", plot_bgcolor="#d2dce7", font_color="#26384c")
-            grafico_diario.update_xaxes(tickfont=dict(color="black"), title_font=dict(color="black"))
-            grafico_diario.update_yaxes(tickfont=dict(color="black"), title_font=dict(color="black"))
-            st.plotly_chart(grafico_diario, use_container_width=True, theme=None)
+            aplicar_estilo_grafico(grafico_diario, fundo_grafico, exibir_grade, min(altura_grafico, 520), cor_texto_legenda, cor_rotulos_categoria)
+            grafico_diario.update_traces(
+                name="Produção diária",
+                showlegend=exibir_legenda,
+                marker_color=cores_variaveis.get("piece_counter", "#2f80ed"),
+            )
+            grafico_diario.update_layout(showlegend=exibir_legenda)
+            st.plotly_chart(grafico_diario, use_container_width=True)
         else:
             st.info("Ainda não há dados suficientes para produção diária.")
 
@@ -358,12 +539,16 @@ with aba_producao:
         if not producao_horaria.empty and px is not None:
             grafico_horario = px.bar(
                 producao_horaria, x="hora", y="producao", text_auto=True,
-                template="plotly_white", labels={"hora": "Hora", "producao": "Peças"}
+                template=tema_grafico, labels={"hora": "Hora", "producao": "Peças"}
             )
-            grafico_horario.update_layout(height=360, paper_bgcolor="#d2dce7", plot_bgcolor="#d2dce7", font_color="#26384c")
-            grafico_horario.update_xaxes(tickfont=dict(color="black"), title_font=dict(color="black"))
-            grafico_horario.update_yaxes(tickfont=dict(color="black"), title_font=dict(color="black"))
-            st.plotly_chart(grafico_horario, use_container_width=True, theme=None)
+            aplicar_estilo_grafico(grafico_horario, fundo_grafico, exibir_grade, min(altura_grafico, 520), cor_texto_legenda, cor_rotulos_categoria)
+            grafico_horario.update_traces(
+                name="Produção horária",
+                showlegend=exibir_legenda,
+                marker_color=cores_variaveis.get("piece_counter", "#2f80ed"),
+            )
+            grafico_horario.update_layout(showlegend=exibir_legenda)
+            st.plotly_chart(grafico_horario, use_container_width=True)
         else:
             st.info("Ainda não há dados suficientes para produção horária.")
 
@@ -376,21 +561,28 @@ with aba_producao:
         serie = dados[dados["variable"].isin(variaveis_temporais)]
         grafico_series = px.line(
             serie, x="timestamp", y="value", color="variavel_amigavel",
-            facet_row="variavel_amigavel", template="plotly_white",
+            facet_row="variavel_amigavel", template=tema_grafico,
             labels={"timestamp": "Horário", "value": "Valor"}
         )
-        grafico_series.update_yaxes(matches=None, tickfont=dict(color="black"), title_font=dict(color="black"))
-        grafico_series.update_xaxes(tickfont=dict(color="black"), title_font=dict(color="black"))
-        grafico_series.update_layout(height=650, showlegend=False, paper_bgcolor="#d2dce7", plot_bgcolor="#d2dce7", font_color="#26384c")
-        st.plotly_chart(grafico_series, use_container_width=True, theme=None)
+        grafico_series.update_yaxes(matches=None)
+        aplicar_estilo_grafico(grafico_series, fundo_grafico, exibir_grade, max(altura_grafico, 520), cor_texto_legenda, cor_rotulos_categoria)
+        grafico_series.update_layout(
+            showlegend=exibir_legenda,
+            legend={"font": {"color": cor_texto_legenda}, "orientation": "h", "y": 1.04, "x": 0},
+        )
+        grafico_series.for_each_trace(
+            lambda trace: trace.update(
+                line={"color": cores_variaveis.get(trace.name, "#2f80ed")},
+                marker={"color": cores_variaveis.get(trace.name, "#2f80ed")},
+            )
+        )
+        st.plotly_chart(grafico_series, use_container_width=True)
     else:
         st.info("Adicione temperatura, pressão ou tempo de ciclo para visualizar séries temporais.")
 
     st.caption(str(desempenho["observacao"]))
 
 with aba_analise:
-    st.caption("Estatística descritiva e detecção de padrões fora do comum (Isolation Forest), "
-               "distintos dos alertas operacionais de limite fixo, que ficam na aba Alertas.")
     st.subheader("Resumo estatístico por variável")
     resumo = dados.groupby("variavel_amigavel")["value"].agg(
         Leituras="count", Média="mean", Mínimo="min", Máximo="max", Desvio="std"
@@ -405,43 +597,22 @@ with aba_analise:
         if px is not None:
             histograma = px.histogram(
                 filtrados, x="value", color="variavel_amigavel", marginal="box",
-                template="plotly_white", labels={"value": "Valor", "variavel_amigavel": "Variável"}
+                template=tema_grafico, labels={"value": "Valor", "variavel_amigavel": "Variável"}
             )
-            histograma.update_layout(
-                height=360, legend_title_text="", paper_bgcolor="#d2dce7", plot_bgcolor="#d2dce7",
-                font_color="#26384c", legend=dict(font=dict(color="black")),
-            )
-            histograma.update_xaxes(tickfont=dict(color="black"), title_font=dict(color="black"))
-            histograma.update_yaxes(tickfont=dict(color="black"), title_font=dict(color="black"))
-            st.plotly_chart(histograma, use_container_width=True, theme=None)
+            aplicar_estilo_grafico(histograma, fundo_grafico, exibir_grade, min(altura_grafico, 520), cor_texto_legenda, cor_rotulos_categoria)
+            histograma.update_layout(legend_title_text="")
+            st.plotly_chart(histograma, use_container_width=True)
     with direita:
         st.markdown("### Leituras por variável")
         contagens = dados["variavel_amigavel"].value_counts().reset_index()
         contagens.columns = ["Variável", "Quantidade"]
         if px is not None:
-            barras = px.bar(contagens, x="Variável", y="Quantidade", color="Quantidade", template="plotly_white")
-            barras.update_layout(height=360, coloraxis_showscale=False, paper_bgcolor="#d2dce7", plot_bgcolor="#d2dce7", font_color="#26384c")
-            barras.update_xaxes(tickfont=dict(color="black"), title_font=dict(color="black"))
-            barras.update_yaxes(tickfont=dict(color="black"), title_font=dict(color="black"))
-            st.plotly_chart(barras, use_container_width=True, theme=None)
-
-    st.divider()
-    st.markdown("### 🔍 Anomalias detectadas (desvio estatístico)")
-    st.caption("Identificadas pelo modelo Isolation Forest (com fallback por z-score). "
-               "Não são violações de limite fixo — são comportamentos fora do padrão histórico.")
-    if "is_anomaly" in dados.columns:
-        anomalias = dados[dados["is_anomaly"].astype(str).str.lower().isin(["true", "1"])]
-        if anomalias.empty:
-            st.info("Nenhuma anomalia foi marcada no CSV atual.")
-        else:
-            st.warning(f"{len(anomalias)} anomalia(s) identificada(s) no histórico atual.")
-            st.dataframe(anomalias.tail(50), use_container_width=True, hide_index=True)
-    else:
-        st.info("A coluna de anomalia ainda não está presente na telemetria.")
+            barras = px.bar(contagens, x="Variável", y="Quantidade", color="Quantidade", template=tema_grafico)
+            aplicar_estilo_grafico(barras, fundo_grafico, exibir_grade, min(altura_grafico, 520), cor_texto_legenda, cor_rotulos_categoria)
+            barras.update_layout(coloraxis_showscale=False)
+            st.plotly_chart(barras, use_container_width=True)
 
 with aba_alertas:
-    st.caption("Alertas operacionais gerados por violação de limites físicos definidos em configuração. "
-               "Anomalias estatísticas ficam na aba Análise Estatística.")
     st.subheader("Central de alertas")
     if isinstance(alertas, list) and alertas:
         tabela_alertas = pd.DataFrame(alertas)
@@ -450,8 +621,17 @@ with aba_alertas:
     else:
         st.success("Nenhum alerta operacional registrado.")
 
+    st.subheader("Anomalias detectadas")
+    if "is_anomaly" in dados.columns:
+        anomalias = dados[dados["is_anomaly"].astype(str).str.lower().isin(["true", "1"])]
+        if anomalias.empty:
+            st.info("Nenhuma anomalia foi marcada no CSV atual.")
+        else:
+            st.dataframe(anomalias.tail(50), use_container_width=True, hide_index=True)
+    else:
+        st.info("A coluna de anomalia ainda não está presente na telemetria.")
+
 with aba_dados:
-    st.caption("Estado atual, indicadores calculados e telemetria completa, para inspeção e auditoria.")
     st.subheader("Estado atual da máquina")
     esquerda, direita = st.columns(2)
     with esquerda:
