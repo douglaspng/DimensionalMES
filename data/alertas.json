@@ -1,1 +1,58 @@
-[]
+[
+  {
+    "timestamp": "2026-09-24T06:10:00Z",
+    "machine_id": "Smart40-N2",
+    "variable": "temperature",
+    "value": 245.0,
+    "level": "warning",
+    "message": "temperature acima do limite de atenção"
+  },
+  {
+    "tipo": "critico",
+    "level": "critical",
+    "variavel": "temperature",
+    "variable": "temperature",
+    "valor": 245.0,
+    "value": 245.0,
+    "limite": 240.0,
+    "unidade": "°C",
+    "direcao": "alta",
+    "mensagem": "temperature atingiu 245.0 °C. Limite crítico: 240 °C.",
+    "message": "temperature acima do limite crítico de 240 °C",
+    "machine_id": "Smart40-N2",
+    "timestamp": "2026-09-24T06:10:00Z",
+    "notificacao_email": {
+      "enviada": false,
+      "motivo": "smtp_nao_configurado",
+      "chave": "temperature:alta"
+    }
+  },
+  {
+    "timestamp": "2026-09-25T00:55:00Z",
+    "machine_id": "Smart40-N2",
+    "variable": "pressure",
+    "value": 20.0,
+    "level": "warning",
+    "message": "pressure abaixo do limite de atenção"
+  },
+  {
+    "tipo": "critico",
+    "level": "critical",
+    "variavel": "pressure",
+    "variable": "pressure",
+    "valor": 20.0,
+    "value": 20.0,
+    "limite": 25.0,
+    "unidade": "bar",
+    "direcao": "baixa",
+    "mensagem": "pressure atingiu 20.0 bar. Limite crítico: 25 bar.",
+    "message": "pressure abaixo do limite crítico de 25 bar",
+    "machine_id": "Smart40-N2",
+    "timestamp": "2026-09-25T00:55:00Z",
+    "notificacao_email": {
+      "enviada": false,
+      "motivo": "smtp_nao_configurado",
+      "chave": "pressure:baixa"
+    }
+  }
+]

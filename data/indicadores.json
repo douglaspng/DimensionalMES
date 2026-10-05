@@ -1,42 +1,50 @@
 {
   "machine_id": "Smart40-N2",
-  "total_readings": 400,
+  "total_readings": 4320,
   "anomalies": {
-    "total": 18,
-    "percentage": 4.5
+    "total": 216,
+    "percentage": 5.0
   },
   "variables": {
     "temperature": {
-      "quantidade": 100,
-      "media": 75.0265,
-      "mediana": 75.08,
-      "minimo": 67.79,
-      "maximo": 81.73,
-      "desvio_padrao": 2.5835
+      "quantidade": 864,
+      "media": 75.332,
+      "mediana": 75.05,
+      "minimo": 69.43,
+      "maximo": 245.0,
+      "desvio_padrao": 6.1991
     },
     "pressure": {
-      "quantidade": 100,
-      "media": 90.7356,
-      "mediana": 90.28,
-      "minimo": 79.01,
-      "maximo": 107.64,
-      "desvio_padrao": 5.1879
+      "quantidade": 864,
+      "media": 89.9964,
+      "mediana": 89.855,
+      "minimo": 20.0,
+      "maximo": 99.89,
+      "desvio_padrao": 4.2284
     },
     "cycle_time": {
-      "quantidade": 100,
-      "media": 12.1404,
-      "mediana": 11.995,
-      "minimo": 9.26,
-      "maximo": 14.87,
-      "desvio_padrao": 1.0748
+      "quantidade": 864,
+      "media": 12.0664,
+      "mediana": 12.14,
+      "minimo": 0.0,
+      "maximo": 14.53,
+      "desvio_padrao": 1.0954
     },
     "piece_counter": {
-      "quantidade": 100,
-      "media": 10.5,
-      "mediana": 10.5,
-      "minimo": 1.0,
-      "maximo": 20.0,
-      "desvio_padrao": 5.7663
+      "quantidade": 864,
+      "media": 3621.8854,
+      "mediana": 3619.0,
+      "minimo": 1005.0,
+      "maximo": 6253.0,
+      "desvio_padrao": 1527.2456
+    },
+    "machine_status": {
+      "quantidade": 864,
+      "media": 0.9965,
+      "mediana": 1.0,
+      "minimo": 0.0,
+      "maximo": 1.0,
+      "desvio_padrao": 0.0588
     }
   }
 }

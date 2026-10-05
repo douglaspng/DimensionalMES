@@ -1,0 +1,16 @@
+{
+  "tema_grafico": "plotly_white",
+  "fundo_grafico": "#000000",
+  "cor_texto_legenda": "#cbcbcb",
+  "exibir_marcadores": true,
+  "exibir_grade": true,
+  "exibir_legenda": true,
+  "exibir_tabela": true,
+  "altura_grafico": 480,
+  "cores_variaveis": {
+    "cycle_time": "#003bc5",
+    "piece_counter": "#e10000",
+    "pressure": "#27ae60",
+    "temperature": "#f2994a"
+  }
+}
