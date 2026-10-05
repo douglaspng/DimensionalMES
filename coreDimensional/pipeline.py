@@ -6,6 +6,7 @@ from .alertas import adicionar_alertas, avaliar_alertas
 from .analise import gerar_indicadores, ler_telemetria
 from .armazenamento import Armazenamento
 from .configuracao import ConfiguracaoAplicacao
+from .notificacoes import avaliar_alerta_critico, notificar_email_se_configurado
 from .validacao import padronizar_mensagem, validar_leitura
 
 
@@ -19,6 +20,9 @@ class DimensionalMES:
         )
         prefixo = configuracao.armazenamento.get("telemetry_file_prefix", "telemetria")
         self.arquivo_telemetria = f"{prefixo}.csv"
+        self.arquivo_controle_notificacoes = configuracao.armazenamento.get(
+            "notification_control_file", "notificacoes_enviadas.json"
+        )
 
     def ingerir(self, mensagem: dict[str, Any]) -> dict[str, Any]:
         leitura = padronizar_mensagem(mensagem, self.configuracao.variaveis)
@@ -30,15 +34,31 @@ class DimensionalMES:
         leitura["is_anomaly"] = False
         leitura["alert_level"] = "normal"
         alertas = avaliar_alertas(leitura, self.configuracao.variaveis)
+        alerta_critico = avaliar_alerta_critico(leitura, self.configuracao.variaveis)
+        resultado_notificacao = None
+        if alerta_critico:
+            resultado_notificacao = notificar_email_se_configurado(
+                alerta_critico,
+                self.armazenamento.diretorio_dados / self.arquivo_controle_notificacoes,
+            )
+            alerta_critico["notificacao_email"] = resultado_notificacao
+            alertas.append(alerta_critico)
+            leitura["alert_level"] = "critical"
         if alertas:
-            leitura["alert_level"] = alertas[0]["level"]
+            leitura["alert_level"] = "critical" if alerta_critico else alertas[0]["level"]
 
         self.armazenamento.adicionar_telemetria(leitura, self.arquivo_telemetria)
         self.armazenamento.atualizar_estado_atual(leitura, {"opcua": "connected", "node_red": "connected"})
         nome_alertas = self.configuracao.armazenamento.get("alerts_file", "alertas.json")
         alertas_atuais = self.armazenamento.ler_json(nome_alertas, [])
         self.armazenamento.salvar_json_seguro(nome_alertas, adicionar_alertas(alertas_atuais, alertas))
-        return {"aceita": True, "leitura": leitura, "alertas": alertas}
+        return {
+            "aceita": True,
+            "leitura": leitura,
+            "alertas": alertas,
+            "alerta_critico": alerta_critico,
+            "notificacao": resultado_notificacao,
+        }
 
     def recalcular_indicadores(self) -> dict[str, Any]:
         linhas = ler_telemetria(self.armazenamento.diretorio_dados / self.arquivo_telemetria)
