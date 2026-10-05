@@ -1,57 +1,52 @@
 {
   "machine_id": "Smart40-N2",
-  "machine_name": "Celula Smart 4.0 Modular",
-
+  "machine_name": "Célula Smart 4.0 Modular",
   "opcua": {
-    "endpoint": "",
-    "enabled": false,
-    "authentication": "unknown"
+    "endpoint": "opc.tcp://192.168.0.20:4840",
+    "enabled": false
   },
-
   "storage": {
     "data_dir": "data",
     "telemetry_file_prefix": "telemetria",
     "current_state_file": "estado_atual.json",
     "alerts_file": "alertas.json",
     "metrics_file": "indicadores.json",
-    "invalid_file": "leituras_invalidas.csv"
+    "invalid_file": "leituras_invalidas.csv",
+    "notification_control_file": "notificacoes_enviadas.json"
   },
-
   "variables": {
     "temperature": {
-      "node_id": "",
-      "unit": "C",
+      "node_id": "ns=3;s=Machine.Temperature",
+      "unit": "°C",
       "min": 0,
       "max": 250,
-      "warning_high": 220
+      "warning_high": 220,
+      "critical_high": 240
     },
-
     "pressure": {
-      "node_id": "",
+      "node_id": "ns=3;s=Machine.Pressure",
       "unit": "bar",
       "min": 0,
       "max": 300,
-      "warning_low": 40
+      "warning_low": 40,
+      "critical_low": 25
     },
-
     "cycle_time": {
-      "node_id": "",
+      "node_id": "ns=3;s=Production.CycleTime",
       "unit": "s",
       "min": 0,
       "max": 3600,
       "warning_high": 30
     },
-
     "piece_counter": {
-      "node_id": "",
-      "unit": "pecas",
+      "node_id": "ns=3;s=Production.PieceCounter",
+      "unit": "peças",
       "min": 0,
       "max": 100000000
     },
-
     "machine_status": {
-      "node_id": "",
-      "unit": "codigo",
+      "node_id": "ns=3;s=Machine.Status",
+      "unit": "código",
       "min": 0,
       "max": 10
     }
