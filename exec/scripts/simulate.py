@@ -37,6 +37,10 @@ NODE_IDS = {
     "cycle_time": "ns=3;s=Production.CycleTime",
     "piece_counter": "ns=3;s=Production.PieceCounter",
     "machine_status": "ns=3;s=Machine.Status",
+    "power_consumption": "ns=3;s=Energy.PowerConsumption",
+    "motor_vibration": "ns=3;s=Machine.MotorVibration",
+    "motor_temperature": "ns=3;s=Machine.MotorTemperature",
+    "rejected_parts": "ns=3;s=Production.RejectedParts",
 }
 
 
@@ -70,6 +74,7 @@ def gerar_leituras(
     ) - timedelta(days=dias - 1)
     total_instantes = max(1, int((dias * 24 * 60) / intervalo_minutos))
     contador = 1000
+    contador_rejeitadas = 0
     mensagens: list[dict] = []
 
     for indice in range(total_instantes):
@@ -86,19 +91,32 @@ def gerar_leituras(
         temperatura = 74 + carga + aleatorio.gauss(0, 1.8)
         pressao = 88 + carga * 1.8 + aleatorio.gauss(0, 2.8)
         tempo_ciclo = max(7.0, 12.5 - carga * 0.35 + aleatorio.gauss(0, 0.7))
+        consumo_energia = max(0.0, 2.5 + carga * 0.8 + aleatorio.gauss(0, 0.15))
+        vibracao_motor = max(0.0, 1.2 + carga * 0.35 + abs(aleatorio.gauss(0, 0.18)))
+        temperatura_motor = 45 + carga * 2.5 + aleatorio.gauss(0, 1.2)
         estado = 0 if em_parada_programada else 1
 
         if evento_temperatura:
             temperatura = 245.0
         if evento_pressao:
             pressao = 20.0
+            vibracao_motor = 7.5
+        if evento_temperatura:
+            temperatura_motor = 130.0
         if em_parada_programada:
             tempo_ciclo = 0.0
+            consumo_energia = 0.4
 
         pecas_no_intervalo = 0 if em_parada_programada else max(
             0, round(5 + carga + aleatorio.gauss(0, 1))
         )
         contador += pecas_no_intervalo
+        rejeitadas_no_intervalo = (
+            0
+            if em_parada_programada
+            else (1 if aleatorio.random() < 0.03 else 0)
+        )
+        contador_rejeitadas += rejeitadas_no_intervalo
         timestamp = instante_iso(instante)
         contexto = {"timestamp": timestamp, "source_timestamp": timestamp, "turno": turno}
 
@@ -108,6 +126,10 @@ def gerar_leituras(
             ("cycle_time", round(tempo_ciclo, 2)),
             ("piece_counter", contador),
             ("machine_status", estado),
+            ("power_consumption", round(consumo_energia, 2)),
+            ("motor_vibration", round(vibracao_motor, 2)),
+            ("motor_temperature", round(temperatura_motor, 2)),
+            ("rejected_parts", contador_rejeitadas),
         ]
         for variavel, valor in valores:
             mensagens.append({
