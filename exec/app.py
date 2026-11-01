@@ -141,6 +141,10 @@ def nome_amigavel(nome: str) -> str:
         "cycle_time": "Tempo de ciclo",
         "piece_counter": "Contador de peças",
         "machine_status": "Estado da máquina",
+        "power_consumption": "Consumo de energia",
+        "motor_vibration": "Vibração do motor",
+        "motor_temperature": "Temperatura do motor",
+        "rejected_parts": "Peças rejeitadas",
     }
     return nomes.get(str(nome), str(nome).replace("_", " ").title())
 
