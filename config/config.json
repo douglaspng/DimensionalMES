@@ -49,6 +49,36 @@
       "unit": "código",
       "min": 0,
       "max": 10
+    },
+    "power_consumption": {
+      "node_id": "ns=3;s=Energy.PowerConsumption",
+      "unit": "kW",
+      "min": 0,
+      "max": 50,
+      "warning_high": 12,
+      "critical_high": 20
+    },
+    "motor_vibration": {
+      "node_id": "ns=3;s=Machine.MotorVibration",
+      "unit": "mm/s",
+      "min": 0,
+      "max": 20,
+      "warning_high": 4.5,
+      "critical_high": 7
+    },
+    "motor_temperature": {
+      "node_id": "ns=3;s=Machine.MotorTemperature",
+      "unit": "°C",
+      "min": 0,
+      "max": 180,
+      "warning_high": 90,
+      "critical_high": 120
+    },
+    "rejected_parts": {
+      "node_id": "ns=3;s=Production.RejectedParts",
+      "unit": "peças",
+      "min": 0,
+      "max": 100000000
     }
   }
 }
