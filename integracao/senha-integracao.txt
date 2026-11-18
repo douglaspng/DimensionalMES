@@ -1,0 +1,14 @@
+SicP1th0n?!
+
+
+Passo 1: O que a Célula Smart 4.0 precisa fornecer
+Para que o Python consiga ler os dados da máquina:
+
+Endereço do Servidor OPC UA: o IP e porta da máquina na rede local (ex: opc.tcp://192.168.0.20:4840 — que é o endereço que já constava no config.json original do seu projeto).
+Autenticação OPC UA: verificar se o servidor da máquina aceita conexão anônima (Anonymous) ou se exige usuário, senha ou certificados de segurança.
+Mapeamento dos NodeIDs (Tags): cada variável física tem um identificador único no CLP. No seu projeto, foram mapeados:
+Temperatura: ns=3;s=Machine.Temperature
+Pressão: ns=3;s=Machine.Pressure
+Contador de peças: ns=3;s=Production.PieceCounter
+Vibração do motor: ns=3;s=Machine.MotorVibration
+(e assim por diante para as 9 variáveis).
