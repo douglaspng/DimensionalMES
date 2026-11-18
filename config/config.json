@@ -5,6 +5,13 @@
     "endpoint": "opc.tcp://192.168.0.20:4840",
     "enabled": false
   },
+  "rastreabilidade": {
+    "gerar_identificadores": true,
+    "ordem_padrao": "OP-SIM-001",
+    "lote_padrao": "LOTE-SIM-001",
+    "produto_padrao": "PRODUTO-N2",
+    "turno_padrao": "Não informado"
+  },
   "storage": {
     "data_dir": "data",
     "telemetry_file_prefix": "telemetria",
